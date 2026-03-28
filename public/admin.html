@@ -1,0 +1,153 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BunBites Admin | Live Dashboard 🔔</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@400;600;800&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root { --primary: #ff6b6b; --dark: #1a1a1a; --bg: #f4f7f6; --white: #ffffff; }
+        body { font-family: 'Poppins', sans-serif; background: var(--bg); margin: 0; padding: 20px; }
+        
+        .admin-header { display: flex; justify-content: space-between; align-items: center; margin-bottom: 25px; background: var(--white); padding: 20px; border-radius: 20px; box-shadow: 0 4px 15px rgba(0,0,0,0.05); }
+        
+        .stats-bar { display: grid; grid-template-columns: repeat(auto-fit, minmax(150px, 1fr)); gap: 15px; margin-bottom: 25px; }
+        .stat-card { background: var(--white); padding: 15px; border-radius: 15px; text-align: center; box-shadow: 0 4px 10px rgba(0,0,0,0.03); }
+        .stat-card h4 { margin: 0; font-size: 12px; color: #888; text-transform: uppercase; }
+        .stat-card p { margin: 5px 0 0; font-size: 20px; font-weight: 800; color: var(--primary); }
+
+        .order-card { background: white; border-radius: 20px; padding: 20px; margin-bottom: 20px; box-shadow: 0 10px 25px rgba(0,0,0,0.05); border-left: 8px solid #ccc; display: grid; grid-template-columns: 1fr 200px; gap: 20px; animation: slideIn 0.3s ease-out; }
+        
+        @keyframes slideIn { from { opacity: 0; transform: translateY(10px); } to { opacity: 1; transform: translateY(0); } }
+
+        .status-Pending { border-left-color: #f1c40f; }
+        .status-Preparing { border-left-color: #3498db; }
+        .status-Delivery { border-left-color: #e67e22; }
+        .status-Completed { border-left-color: #2ecc71; opacity: 0.8; }
+
+        .mini-map { height: 180px; border-radius: 15px; background: #eee; border: 1px solid #ddd; }
+        .controls { margin-top: 20px; display: flex; gap: 8px; grid-column: 1 / span 2; }
+        .btn-status { flex: 1; padding: 12px; border: none; border-radius: 10px; cursor: pointer; font-weight: 700; color: white; font-size: 11px; text-transform: uppercase; }
+        
+        .bg-prep { background: #3498db; }
+        .bg-ride { background: #e67e22; }
+        .bg-done { background: #2ecc71; }
+        .bg-del { background: #95a5a6; }
+
+        #mute-btn { background: none; border: 1px solid #ddd; padding: 5px 10px; border-radius: 10px; cursor: pointer; font-size: 12px; }
+    </style>
+</head>
+<body>
+
+    <div class="admin-header">
+        <div>
+            <h1 style="margin:0; font-size: 24px;">Orders 🍩</h1>
+            <button id="mute-btn" onclick="toggleMute()">🔊 Sound On</button>
+        </div>
+        <button onclick="location.reload()" style="background:none; border:none; font-size:24px; cursor:pointer;">🔄</button>
+    </div>
+
+    <div class="stats-bar">
+        <div class="stat-card"><h4>Active</h4><p id="stat-active">0</p></div>
+        <div class="stat-card"><h4>Today's Sales</h4><p id="stat-sales">₱0</p></div>
+    </div>
+
+    <div id="orders-list"></div>
+
+    <audio id="order-sound" src="https://assets.mixkit.co/active_storage/sfx/2869/2869-preview.mp3" preload="auto"></audio>
+
+    <script type="module">
+        const pass = prompt("Admin Password:");
+        if (pass !== "BunBites2024") {
+            alert("Unauthorized!");
+            window.location.href = "index.html";
+        }
+
+        import { db } from './assets/firebase.js';
+        import { collection, query, orderBy, onSnapshot, doc, updateDoc, deleteDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        let isMuted = false;
+        let initialLoad = true; // Prevents sound playing for old orders on refresh
+        const ordersContainer = document.getElementById('orders-list');
+        const alertSound = document.getElementById('order-sound');
+
+        window.toggleMute = () => {
+            isMuted = !isMuted;
+            document.getElementById('mute-btn').innerText = isMuted ? "🔇 Muted" : "🔊 Sound On";
+        };
+
+        const q = query(collection(db, "orders"), orderBy("createdAt", "desc"));
+        
+        onSnapshot(q, (snapshot) => {
+            let totalSales = 0;
+            let activeCount = 0;
+            
+            // Check for new additions
+            snapshot.docChanges().forEach((change) => {
+                if (change.type === "added" && !initialLoad) {
+                    if (!isMuted) alertSound.play().catch(e => console.log("Audio play blocked: interact with page first."));
+                }
+            });
+
+            ordersContainer.innerHTML = '';
+            
+            snapshot.forEach((osnap) => {
+                const order = osnap.data();
+                const id = osnap.id;
+                if (order.status !== 'Completed') activeCount++;
+                const numericPrice = parseInt(order.total.replace(/[^0-9]/g, '')) || 0;
+                totalSales += numericPrice;
+                renderOrderCard(id, order);
+            });
+
+            document.getElementById('stat-active').innerText = activeCount;
+            document.getElementById('stat-sales').innerText = `₱${totalSales.toLocaleString()}`;
+            initialLoad = false;
+        });
+
+        function renderOrderCard(id, data) {
+            const card = document.createElement('div');
+            card.className = `order-card status-${data.status}`;
+            const itemsHtml = data.items.map(i => `<span style="background:#eee; padding:2px 6px; border-radius:5px; font-size:11px; margin-right:5px;">${i.name} x${i.qty}</span>`).join('');
+
+            card.innerHTML = `
+                <div class="info-side">
+                    <div style="display:flex; justify-content:space-between;">
+                        <span style="font-size:10px; color:#aaa;">ID: ${id.slice(0,5)}</span>
+                        <span style="font-weight:800; color:var(--primary);">${data.status}</span>
+                    </div>
+                    <h2 style="margin:5px 0;">${data.customerName}</h2>
+                    <p style="margin:0; font-weight:600;">📞 ${data.phone}</p>
+                    <p style="margin:5px 0; font-size:12px; color:#666;">📍 ${data.address}</p>
+                    <div style="margin:10px 0;">${itemsHtml}</div>
+                    <div style="font-size:18px; font-weight:800;">TOTAL: ${data.total}</div>
+                </div>
+                <div class="mini-map" id="map-${id}"></div>
+                <div class="controls">
+                    <button class="btn-status bg-prep" onclick="updateStatus('${id}', 'Preparing')">Prepare</button>
+                    <button class="btn-status bg-ride" onclick="updateStatus('${id}', 'Delivery')">Out</button>
+                    <button class="btn-status bg-done" onclick="updateStatus('${id}', 'Completed')">Done</button>
+                    <button class="btn-status bg-del" onclick="deleteOrder('${id}')">Delete</button>
+                </div>
+            `;
+            ordersContainer.appendChild(card);
+
+            setTimeout(() => {
+                const lat = parseFloat(data.coords?.lat);
+                const lng = parseFloat(data.coords?.lng);
+                if (!isNaN(lat)) {
+                    const map = L.map(`map-${id}`, { zoomControl: false, attributionControl: false }).setView([lat, lng], 16);
+                    L.tileLayer('https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png').addTo(map);
+                    L.marker([lat, lng]).addTo(map);
+                }
+            }, 100);
+        }
+
+        window.updateStatus = async (id, newStatus) => { await updateDoc(doc(db, "orders", id), { status: newStatus }); };
+        window.deleteOrder = async (id) => { if(confirm("Delete?")) await deleteDoc(doc(db, "orders", id)); };
+    </script>
+</body>
+</html>
