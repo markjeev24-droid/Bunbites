@@ -20,11 +20,10 @@
         .auth-nav-link { font-size: 13px; font-weight: 600; color: var(--primary); text-decoration: none; border: 1.5px solid var(--primary); padding: 5px 15px; border-radius: 20px; transition: 0.3s; cursor: pointer; background: none; }
         .auth-nav-link:hover { background: var(--primary); color: white; }
         
-        /* Logout Specific Style */
         .logout-btn { color: #888; border-color: #ddd; margin-left: 10px; }
         .logout-btn:hover { background: #fff5f5; color: var(--primary); border-color: var(--primary); }
 
-        /* Welcome Popup Animations */
+        /* Welcome Popup Animation */
         @keyframes popIn {
             from { transform: scale(0.8); opacity: 0; }
             to { transform: scale(1); opacity: 1; }
@@ -171,18 +170,17 @@
     </div>
 
     <script type="module">
+        // IMPORTANT: Use ./ so GitHub Pages looks in the correct project folder
         import { auth, db } from './assets/firebase.js';
         import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
         import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
 
         let loggedInUser = null;
 
-        // Welcome Popup Control
         window.closeWelcome = () => {
             document.getElementById('welcome-modal').style.display = 'none';
         };
 
-        // Monitor Login State
         onAuthStateChanged(auth, async (user) => {
             const navStatus = document.getElementById('user-nav-status');
             if (user) {
@@ -204,9 +202,9 @@
                         // Set isNewUser to false so it doesn't show again
                         await updateDoc(userRef, { isNewUser: false });
                     }
-                } catch (e) { console.error("Error fetching user data for popup:", e); }
+                } catch (e) { console.error("Error fetching user data:", e); }
 
-                // Set up Logout Event
+                // Logout Event
                 document.getElementById('logout-btn').addEventListener('click', async () => {
                     if(confirm("Are you sure you want to log out?")) {
                         await signOut(auth);
@@ -214,10 +212,9 @@
                     }
                 });
                 
-                // Restore cart if user just logged in
+                // Restore cart
                 const pending = localStorage.getItem('pending_cart');
                 if (pending) {
-                    alert("Welcome back! We've restored your donut basket. 🍩");
                     localStorage.removeItem('pending_cart'); 
                 }
             } else {
@@ -226,7 +223,6 @@
             }
         });
 
-        // Checkout Button Logic
         document.getElementById('checkout-now-btn').addEventListener('click', () => {
             if (!loggedInUser) {
                 alert("Please log in to complete your order! 🍩");
@@ -242,10 +238,9 @@
         });
     </script>
 
-    <script type="module" src="modules/cart.js"></script>
+    <script type="module" src="./modules/cart.js"></script>
 
     <script>
-        // Track Order UI Logic
         function checkLiveOrder() {
             const orderId = localStorage.getItem('last_bunbites_order');
             const bubble = document.getElementById('track-order-bubble');
