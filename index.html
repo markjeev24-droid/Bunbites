@@ -1,0 +1,265 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>BunBites | Fresh Donuts 🍩</title>
+    <link href="https://fonts.googleapis.com/css2?family=Poppins:wght@300;400;600;800&display=swap" rel="stylesheet">
+    
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" />
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+
+    <style>
+        :root { --primary: #ff6b6b; --dark: #1a1a1a; --bg: #f8f9fa; --white: #ffffff; --green: #27ae60; }
+        body { font-family: 'Poppins', sans-serif; background: var(--bg); margin: 0; color: var(--dark); padding-bottom: 100px; }
+
+        /* Navigation */
+        nav { display: flex; justify-content: space-between; align-items: center; padding: 15px 5%; background: var(--white); position: sticky; top: 0; z-index: 1000; box-shadow: 0 4px 12px rgba(0,0,0,0.05); }
+        .logo { font-size: 22px; font-weight: 800; color: var(--primary); text-decoration: none; display: flex; align-items: center; gap: 8px; }
+        
+        .auth-nav-link { font-size: 13px; font-weight: 600; color: var(--primary); text-decoration: none; border: 1.5px solid var(--primary); padding: 5px 15px; border-radius: 20px; transition: 0.3s; cursor: pointer; background: none; }
+        .auth-nav-link:hover { background: var(--primary); color: white; }
+        
+        .logout-btn { color: #888; border-color: #ddd; margin-left: 10px; }
+        .logout-btn:hover { background: #fff5f5; color: var(--primary); border-color: var(--primary); }
+
+        /* Welcome Popup Animation */
+        @keyframes popIn {
+            from { transform: scale(0.8); opacity: 0; }
+            to { transform: scale(1); opacity: 1; }
+        }
+
+        /* Categories */
+        .category-wrapper { background: var(--white); padding: 10px 5%; position: sticky; top: 60px; z-index: 999; display: flex; gap: 10px; overflow-x: auto; white-space: nowrap; scrollbar-width: none; }
+        .cat-btn { padding: 8px 20px; border-radius: 25px; border: 1px solid #eee; background: var(--white); cursor: pointer; font-size: 13px; font-weight: 600; transition: 0.3s; }
+        .cat-btn.active { background: var(--primary); color: white; border-color: var(--primary); }
+
+        /* Menu Grid */
+        .menu-section { padding: 20px 5%; }
+        .menu-grid { display: grid; grid-template-columns: repeat(auto-fill, minmax(160px, 1fr)); gap: 15px; }
+        .food-card { background: var(--white); border-radius: 25px; overflow: hidden; box-shadow: 0 8px 20px rgba(0,0,0,0.04); position: relative; transition: 0.3s; }
+        .food-img { width: 100%; height: 140px; object-fit: cover; background: #eee; }
+        .food-info { padding: 12px; }
+        .food-info h3 { margin: 0; font-size: 14px; font-weight: 700; height: 40px; }
+        .price { color: var(--primary); font-weight: 800; font-size: 16px; }
+        .btn-add-small { background: var(--dark); color: white; border: none; width: 32px; height: 32px; border-radius: 10px; position: absolute; bottom: 12px; right: 12px; cursor: pointer; font-size: 20px; font-weight: bold; }
+
+        /* Bottom Basket Bar */
+        .basket-bar { position: fixed; bottom: 20px; left: 5%; right: 5%; height: 60px; background: var(--primary); border-radius: 20px; display: none; align-items: center; justify-content: space-between; padding: 0 25px; color: white; font-weight: 700; z-index: 2000; cursor: pointer; box-shadow: 0 10px 25px rgba(255, 107, 107, 0.3); }
+
+        /* Cart Drawer */
+        #cart-drawer { position: fixed; right: -100%; top: 0; width: 100%; max-width: 400px; height: 100%; background: white; z-index: 3000; transition: 0.4s ease; display: flex; flex-direction: column; box-shadow: -10px 0 30px rgba(0,0,0,0.1); }
+        #cart-drawer.open { right: 0; }
+        .overlay { position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.5); display: none; z-index: 2500; backdrop-filter: blur(3px); }
+        
+        .cart-header { padding: 20px; border-bottom: 1px solid #eee; display: flex; justify-content: space-between; align-items: center; }
+        .cart-items { flex-grow: 1; overflow-y: auto; padding: 20px; }
+        .cart-footer { padding: 20px; background: #f8f9fa; border-top: 1px solid #eee; }
+        
+        /* Modal & Inputs */
+        #info-modal { display: none; position: fixed; top: 0; left: 0; width: 100%; height: 100%; background: rgba(0,0,0,0.6); z-index: 4000; justify-content: center; align-items: center; padding: 15px; }
+        .modal-content { background: white; width: 100%; max-width: 450px; padding: 25px; border-radius: 25px; max-height: 90vh; overflow-y: auto; box-sizing: border-box; }
+        .info-input { width: 100%; padding: 12px; margin-bottom: 12px; border: 1px solid #ddd; border-radius: 10px; box-sizing: border-box; font-family: inherit; font-size: 14px; }
+        
+        #map-canvas { width: 100%; height: 250px; border-radius: 15px; margin-bottom: 15px; display: none; border: 2px solid #eee; z-index: 1; }
+        
+        .checkout-btn { width: 100%; padding: 16px; background: var(--primary); color: white; border: none; border-radius: 15px; font-weight: 800; font-size: 16px; cursor: pointer; transition: 0.2s; }
+        .checkout-btn:active { transform: scale(0.98); }
+        .checkout-btn:disabled { background: #ccc; cursor: not-allowed; }
+
+        .btn-map-trigger { width: 100%; background: #4285F4; color: white; border: none; padding: 12px; border-radius: 10px; cursor: pointer; font-weight: 600; margin-bottom: 12px; display: flex; align-items: center; justify-content: center; gap: 8px; }
+
+        #track-order-bubble { 
+            display: none; position: fixed; bottom: 100px; right: 20px; z-index: 2001; 
+            background: var(--dark); color: white; padding: 12px 20px; border-radius: 50px; 
+            box-shadow: 0 10px 20px rgba(0,0,0,0.2); cursor: pointer; align-items: center; 
+            gap: 10px; border: 2px solid var(--primary); animation: slideUp 0.5s ease;
+        }
+
+        @keyframes slideUp {
+            from { transform: translateY(50px); opacity: 0; }
+            to { transform: translateY(0); opacity: 1; }
+        }
+    </style>
+</head>
+<body>
+
+    <nav>
+        <a href="#" class="logo">BunBites 🍩</a>
+        <div id="user-nav-status" style="display: flex; align-items: center; gap: 12px;">
+            <a href="auth/login.html" class="auth-nav-link" id="login-nav-btn">Sign In</a>
+        </div>
+    </nav>
+
+    <div class="category-wrapper" id="category-list">
+        <button class="cat-btn active" onclick="filterMenu('All')">All</button>
+        <button class="cat-btn" onclick="filterMenu('Normal Mini')">Normal Mini</button>
+        <button class="cat-btn" onclick="filterMenu('Messy Mini')">Messy Mini</button>
+        <button class="cat-btn" onclick="filterMenu('Specials')">Specials</button>
+    </div>
+
+    <div class="menu-section">
+        <div id="product-grid" class="menu-grid">
+            <p style="text-align:center; grid-column: 1/-1; padding: 50px; color: #999;">Fetching fresh donuts...</p>
+        </div>
+    </div>
+
+    <div id="track-order-bubble" onclick="goToTracking()">
+        <span style="font-size: 18px;">🛵</span>
+        <div style="line-height: 1.2;">
+            <div style="font-size: 10px; opacity: 0.8; text-transform: uppercase; font-weight: 800;">Active Order</div>
+            <div style="font-size: 13px; font-weight: 700;">Track Status →</div>
+        </div>
+    </div>
+
+    <div class="basket-bar" id="basket-bar" onclick="toggleCart(true)">
+        <span>🛒 <span id="basket-count">0</span> Items</span>
+        <span>View Basket →</span>
+    </div>
+
+    <div class="overlay" id="overlay" onclick="toggleCart(false)"></div>
+
+    <div id="cart-drawer">
+        <div class="cart-header">
+            <h2 style="margin:0; font-weight: 800;">Basket</h2>
+            <button onclick="toggleCart(false)" style="background:none; border:none; font-size:28px; cursor:pointer;">&times;</button>
+        </div>
+        <div class="cart-items" id="cart-items-list"></div>
+        <div class="cart-footer">
+            <div style="display:flex; justify-content:space-between; margin-bottom:15px; align-items: center;">
+                <span style="font-weight: 600; color: #666;">Total Amount</span>
+                <span id="cart-total" style="font-weight: 800; font-size: 20px; color: var(--dark);">₱0.00</span>
+            </div>
+            <button class="checkout-btn" id="checkout-now-btn">CHECKOUT NOW</button>
+        </div>
+    </div>
+
+    <div id="welcome-modal" style="display:none; position:fixed; top:0; left:0; width:100%; height:100%; background:rgba(0,0,0,0.7); z-index:5000; justify-content:center; align-items:center; padding:20px;">
+        <div style="background:white; padding:40px; border-radius:30px; text-align:center; max-width:400px; position:relative; animation: popIn 0.5s cubic-bezier(0.175, 0.885, 0.32, 1.275);">
+            <div style="font-size: 60px; margin-bottom: 10px;">🍩</div>
+            <h2 style="margin:0; color:var(--primary); font-weight:800;">Welcome to the Family!</h2>
+            <p style="color:#666; line-height:1.6; margin: 15px 0;">We're so glad you're here, <span id="welcome-name" style="font-weight:600;">Foodie</span>! Get ready for the freshest donuts in town.</p>
+            <button onclick="closeWelcome()" style="width:100%; background:var(--dark); color:white; border:none; padding:15px; border-radius:15px; font-weight:700; cursor:pointer; margin-top:10px;">LET'S EAT!</button>
+        </div>
+    </div>
+
+    <div id="info-modal">
+        <div class="modal-content">
+            <div id="step-info">
+                <h2 style="margin:0 0 20px 0; font-weight: 800;">Delivery Details 📍</h2>
+                <input type="text" id="cust-name" class="info-input" placeholder="Your Full Name">
+                <input type="tel" id="cust-phone" class="info-input" placeholder="Active Phone Number">
+                <button type="button" class="btn-map-trigger" onclick="initMapSelector()">📍 Pin Delivery Spot on Map</button>
+                <div id="map-canvas"></div>
+                <textarea id="cust-address" class="info-input" style="height:80px; resize: none;" placeholder="Detailed Address (pinned location will show here)"></textarea>
+                <input type="text" id="cust-landmark" class="info-input" placeholder="Nearest Landmark (Optional)">
+                <input type="hidden" id="cust-lat">
+                <input type="hidden" id="cust-lng">
+                <button class="checkout-btn" onclick="showConfirmation()">REVIEW ORDER</button>
+                <button onclick="closeInfoModal()" style="width:100%; background:none; border:none; color:#aaa; margin-top:15px; cursor:pointer; font-weight:600;">Cancel</button>
+            </div>
+
+            <div id="step-confirm" style="display:none;">
+                <h2 style="margin:0 0 10px 0; font-weight: 800;">Confirm Order 🍩</h2>
+                <p style="font-size: 13px; color: #666; margin-bottom: 20px;">Please check your details before placing the order.</p>
+                <div id="order-summary-box" style="background:#fdf2f2; padding:20px; border-radius:15px; font-size:14px; line-height: 1.6; border: 1px dashed var(--primary); margin-bottom: 25px;"></div>
+                <button class="checkout-btn" id="final-submit-btn" onclick="submitFinalOrder()">CONFIRM & PAY (COD)</button>
+                <button onclick="backToInfo()" style="width:100%; background:none; border:none; color:#888; margin-top:15px; cursor:pointer; font-weight: 600;">Edit Details</button>
+            </div>
+        </div>
+    </div>
+
+    <script type="module">
+        // IMPORTANT: Use ./ so GitHub Pages looks in the correct project folder
+        import { auth, db } from './assets/firebase.js';
+        import { onAuthStateChanged, signOut } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-auth.js";
+        import { doc, getDoc, updateDoc } from "https://www.gstatic.com/firebasejs/10.12.0/firebase-firestore.js";
+
+        let loggedInUser = null;
+
+        window.closeWelcome = () => {
+            document.getElementById('welcome-modal').style.display = 'none';
+        };
+
+        onAuthStateChanged(auth, async (user) => {
+            const navStatus = document.getElementById('user-nav-status');
+            if (user) {
+                loggedInUser = user;
+                navStatus.innerHTML = `
+                    <span style="font-weight:bold; font-size:13px; color:var(--dark)">Hi, ${user.displayName || 'Foodie'} 👋</span>
+                    <button class="auth-nav-link logout-btn" id="logout-btn">Logout</button>
+                `;
+
+                // --- WELCOME POPUP LOGIC ---
+                try {
+                    const userRef = doc(db, "users", user.uid);
+                    const userSnap = await getDoc(userRef);
+
+                    if (userSnap.exists() && userSnap.data().isNewUser === true) {
+                        document.getElementById('welcome-name').innerText = user.displayName || 'Foodie';
+                        document.getElementById('welcome-modal').style.display = 'flex';
+                        
+                        // Set isNewUser to false so it doesn't show again
+                        await updateDoc(userRef, { isNewUser: false });
+                    }
+                } catch (e) { console.error("Error fetching user data:", e); }
+
+                // Logout Event
+                document.getElementById('logout-btn').addEventListener('click', async () => {
+                    if(confirm("Are you sure you want to log out?")) {
+                        await signOut(auth);
+                        window.location.reload();
+                    }
+                });
+                
+                // Restore cart
+                const pending = localStorage.getItem('pending_cart');
+                if (pending) {
+                    localStorage.removeItem('pending_cart'); 
+                }
+            } else {
+                loggedInUser = null;
+                navStatus.innerHTML = `<a href="auth/login.html" class="auth-nav-link">Sign In</a>`;
+            }
+        });
+
+        document.getElementById('checkout-now-btn').addEventListener('click', () => {
+            if (!loggedInUser) {
+                alert("Please log in to complete your order! 🍩");
+                if (window.cart && window.cart.length > 0) {
+                    localStorage.setItem('pending_cart', JSON.stringify(window.cart));
+                }
+                window.location.href = "auth/login.html";
+            } else {
+                if (typeof window.startCheckoutProcess === 'function') {
+                    window.startCheckoutProcess();
+                }
+            }
+        });
+    </script>
+
+    <script type="module" src="./modules/cart.js"></script>
+
+    <script>
+        function checkLiveOrder() {
+            const orderId = localStorage.getItem('last_bunbites_order');
+            const bubble = document.getElementById('track-order-bubble');
+            if (orderId) {
+                bubble.style.display = 'flex';
+            } else {
+                bubble.style.display = 'none';
+            }
+        }
+
+        function goToTracking() {
+            const orderId = localStorage.getItem('last_bunbites_order');
+            if (orderId) {
+                window.location.href = `track.html?id=${orderId}`;
+            }
+        }
+
+        window.addEventListener('load', checkLiveOrder);
+        setInterval(checkLiveOrder, 5000);
+    </script>
+</body>
+</html>
